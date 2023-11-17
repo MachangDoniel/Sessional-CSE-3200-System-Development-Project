@@ -1,34 +1,40 @@
-import pdfplumber
-import xlwings as xw
+import pandas as pd
+import tabula
+from openpyxl import Workbook
 
-# Open the PDF file
-with pdfplumber.open('table.pdf') as pdf:
-    # Extract data from the PDF
-    data = {}
-    for page in pdf.pages:
-        for line in page.extract_text().split('\n'):
-            row = line.split()  # Assuming the data is space-separated, adjust as needed
-            if len(row) >= 2:
-                serial_no = row[0]
-                name = row[1]
-                data[serial_no] = name
+def extract_table_from_pdf(pdf_path):
+    # Use tabula to extract tables from the PDF
+    tables = tabula.read_pdf(pdf_path, pages='all', multiple_tables=True)
+    return tables
 
-# Open the Excel file using xlwings
-excel_file = 'data from table.xlsx'
-app = xw.App(visible=True)  # This will open Excel if it's not already running
+def create_excel_file(name, data):
+    # Create a new Excel workbook and add the data to a sheet
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Data'
 
-try:
-    wb = app.books.open(excel_file)
-    sheet = wb.sheets.active  # Select the active sheet, or specify a specific sheet
+    for row in data.itertuples(index=False):
+        sheet.append(row)
 
-    # Iterate through the Excel file and insert names into the first column (A)
-    for row in sheet.range('A2:A{}'.format(sheet.cells.last_cell.row)):  # Use only the first column
-        serial_no = row.value
-        if serial_no in data:
-            name = data[serial_no]
-            row.offset(column_offset=1).value = name  # Offset by 1 column to insert the name
+    # Save the Excel file with the given name
+    workbook.save(f'{name}.xlsx')
 
-    # Save the modified Excel file
-    wb.save()
-finally:
-    app.quit()
+def main(pdf_path):
+    # Extract tables from the PDF
+    tables = extract_table_from_pdf(pdf_path)
+
+    # Assuming the first table contains the names for Excel files
+    first_table = tables[0]
+    name_column = first_table.iloc[:, 0]  # Assuming the names are in the first column
+
+    # Iterate through the remaining tables and create Excel files based on names
+    for i in range(1, len(tables)):
+        current_table = tables[i]
+        current_table_name = name_column[i - 1]
+
+        # Create an Excel file for each name and add data from the corresponding table
+        create_excel_file(str(current_table_name), current_table)
+
+if __name__ == "__main__":
+    pdf_path = "table.pdf"  # Replace with the path to your PDF file
+    main(pdf_path)
