@@ -893,10 +893,663 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+## Match First & Second table attributes
+```bash
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import pdfplumber
+import pandas as pd
+import os
+import shutil
+import xlsxwriter
+import openpyxl
+import xlrd
+import time
+
+
+
+def extract_data_from_pdf(pdf_file):
+    with pdfplumber.open(pdf_file) as pdf:
+        text_content = ""
+        tables_with_titles = []
+        for page in pdf.pages:
+            text_content += page.extract_text()
+            tables = page.extract_tables()
+            if tables:
+                for table in tables:
+                    # Extracting the title before the table
+                    table_start = table[0][1] if table else 0
+                    text_before_table = page.extract_text()
+                    lines = text_before_table.split('\n')
+                    title = ""
+                    for line in reversed(lines):
+                        if line.strip():
+                            title = line
+                            break
+                    tables_with_titles.append({"Title": title, "Table": table})
+    return text_content, tables_with_titles
+
+
+def select_pdf():
+    global pdf_file
+    pdf_file = filedialog.askopenfilename()
+    if pdf_file:
+        pdf_label.config(text=f"Selected PDF: {pdf_file}")
+        pdf_label.pack()
+
+
+def select_sample_excel():
+    global sample_excel, sample_label
+    sample_excel = filedialog.askopenfilename()
+    if sample_excel:
+        sample_label.config(text=f"Selected Sample Excel: {sample_excel}")
+        sample_label.pack()
+
+
+def generate_excel():
+    global pdf_file, sample_excel,output_dir
+    if pdf_file:
+        text_content, tables_with_titles = extract_data_from_pdf(pdf_file)
+        
+        output_dir = filedialog.askdirectory()
+        print("Output directory is: "+output_dir)  # Debug line to check the selected directory
+        
+        if output_dir:
+            temp_folder = os.path.join(output_dir, "temp118121")
+            if not os.path.exists(temp_folder):
+                os.makedirs(temp_folder)  # Create the 'temp118121' folder if it doesn't exist
+            
+            # Create files inside 'tempo118121' from PDF data
+            if tables_with_titles:
+                for idx, data in enumerate(tables_with_titles):
+                    table = data["Table"]
+                    df = pd.DataFrame(table)
+                    df.ffill(axis=0, inplace=True)  # Fill empty cells with previous values in the same column
+                    
+                    excel_path = f"{temp_folder}/table_{idx}.xlsx"  # Using table number for filename within the temp folder
+                    try:
+                        df.to_excel(excel_path, index=False)
+                        print(f"table_{idx}.xlsx created")  # Print the Excel file created
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to create Excel file at {excel_path}: {e}")
+                        print(f"Failed to create Excel file at {excel_path}: {e}")  # Detailed error message in console
+                
+                messagebox.showinfo("Excel Created Successfully", f"Excel(s) created successfully in {temp_folder}!")
+                
+                # Proceed with the first Excel file
+                process_first_excel(output_dir, temp_folder, tables_with_titles)
+                clear_labels()  # Reset the labels after generating Excel files
+                refresh_app()  # Refresh the app after successful task
+            else:
+                messagebox.showwarning("No Tables Found", "No tables were detected in the PDF.")
+        else:
+            messagebox.showwarning("Debug", "No output directory selected.")
 
 
 
 
+
+def process_first_excel(output_dir, temp_folder, tables_with_titles):
+    # temp_folder = os.path.join(output_dir, "temp118121")
+    if len(tables_with_titles) >= 2:
+        # Load data from the first two Excel files
+        first_excel_path = os.path.join(temp_folder, "table_0.xlsx")
+        second_excel_path = os.path.join(temp_folder, "table_1.xlsx")
+
+        # Load first and second tables
+        first_table_df = pd.read_excel(first_excel_path)
+        second_table_df = pd.read_excel(second_excel_path)
+
+        # Extract second column (except first and last rows) from the first table
+        second_column_first_table = first_table_df.iloc[1:-1, 1]  # Assuming second column index is 1
+
+        # Copy sample Excel to a new file named after values in the second column of the first table
+        for temp_value in second_column_first_table:
+            value=str(temp_value).replace(" ", "").replace(".", "").replace(",", "")
+            new_file_name = f"{value}.xlsx"
+            new_excel_file_path = os.path.join(output_dir, new_file_name)
+            shutil.copy(sample_excel, os.path.join(output_dir, new_file_name))
+            print(f"{new_file_name} created")  # Print the Excel file created
+
+            # Check if any cell value in the second table matches the values in the second column of the first table
+            for index, row in second_table_df.iterrows():
+                cleaned_row_value = str(row[1]).replace(" ", "").replace(".", "").replace(",", "")  # Assuming the second column index is 1
+                cleaned_value = str(value).replace(" ", "").replace(".", "").replace(",", "")  # Clean the value from the first table
+                # print("Hand: "+ row[1], {value})
+                print("Hand: "+ cleaned_row_value, cleaned_value)
+                print(cleaned_row_value == cleaned_value)
+                if cleaned_row_value == cleaned_value:  # Assuming the comparison column in the second table is index 1
+                    retrieved_value = row[3]  # Assuming the retrieved column in the second table is index 3
+                    print("Match Found")
+                    # Write the retrieved value to the new Excel file in row 27, column 7
+                    new_excel_file_path = os.path.join(output_dir, new_file_name)
+                    print(f"New Excel file path: {new_excel_file_path}")
+
+                   # Code here
+    else:
+        messagebox.showwarning("No Tables Found", "Insufficient tables detected in the PDF.")
+
+
+
+
+def clear_labels():
+    pdf_label.config(text="Selected PDF: ")
+    pdf_label.pack()
+
+
+def refresh_app():
+    root.destroy()
+    main()
+
+
+def main():
+    global root, pdf_label, sample_label
+
+    root = tk.Tk()
+    root.title("PDF to Excel Converter")
+
+    style = ttk.Style()
+    style.configure("TButton", padding=6, relief="flat", foreground="black", background="green")
+    style.map("TButton", background=[("active", "#0056b3")])
+
+    main_frame = tk.Frame(root, bg="#f0f0f0")
+    main_frame.pack(padx=20, pady=20)
+
+    select_button = ttk.Button(main_frame, text="Select PDF", command=select_pdf, style="TButton")
+    select_button.pack(pady=10)
+
+    pdf_label = tk.Label(main_frame, text="Selected PDF: ", bg="#f0f0f0")
+    pdf_label.pack()
+
+    select_sample_button = ttk.Button(main_frame, text="Select Sample Excel", command=select_sample_excel, style="TButton")
+    select_sample_button.pack(pady=10)
+
+    sample_label = tk.Label(main_frame, text="Selected Sample Excel: ", bg="#f0f0f0")
+    sample_label.pack()
+
+    generate_button = ttk.Button(main_frame, text="Generate Excel", command=generate_excel, style="TButton")
+    generate_button.pack(pady=10)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
+```
+## last task till 28/11/2023
+```bash
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import pdfplumber
+import pandas as pd
+import os
+import shutil
+from openpyxl import load_workbook
+
+
+
+
+def extract_data_from_pdf(pdf_file):
+    with pdfplumber.open(pdf_file) as pdf:
+        text_content = ""
+        tables_with_titles = []
+        for page in pdf.pages:
+            text_content += page.extract_text()
+            tables = page.extract_tables()
+            if tables:
+                for table in tables:
+                    # Extracting the title before the table
+                    table_start = table[0][1] if table else 0
+                    text_before_table = page.extract_text()
+                    lines = text_before_table.split('\n')
+                    title = ""
+                    for line in reversed(lines):
+                        if line.strip():
+                            title = line
+                            break
+                    tables_with_titles.append({"Title": title, "Table": table})
+    return text_content, tables_with_titles
+
+
+def select_pdf():
+    global pdf_file
+    pdf_file = filedialog.askopenfilename()
+    if pdf_file:
+        pdf_label.config(text=f"Selected PDF: {pdf_file}")
+        pdf_label.pack()
+
+
+def select_sample_excel():
+    global sample_excel, sample_label
+    sample_excel = filedialog.askopenfilename()
+    if sample_excel:
+        sample_label.config(text=f"Selected Sample Excel: {sample_excel}")
+        sample_label.pack()
+
+
+def generate_excel():
+    global pdf_file, sample_excel,output_dir
+    if pdf_file:
+        text_content, tables_with_titles = extract_data_from_pdf(pdf_file)
+        
+        output_dir = filedialog.askdirectory()
+        print("Output directory is: "+output_dir)  # Debug line to check the selected directory
+        
+        if output_dir:
+            temp_folder = os.path.join(output_dir, "temp118121")
+            if not os.path.exists(temp_folder):
+                os.makedirs(temp_folder)  # Create the 'temp118121' folder if it doesn't exist
+            
+            # Create files inside 'tempo118121' from PDF data
+            if tables_with_titles:
+                for idx, data in enumerate(tables_with_titles):
+                    table = data["Table"]
+                    df = pd.DataFrame(table)
+                    df.ffill(axis=0, inplace=True)  # Fill empty cells with previous values in the same column
+                    
+                    excel_path = f"{temp_folder}/table_{idx}.xlsx"  # Using table number for filename within the temp folder
+                    try:
+                        df.to_excel(excel_path, index=False)
+                        print(f"table_{idx}.xlsx created")  # Print the Excel file created
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to create Excel file at {excel_path}: {e}")
+                        print(f"Failed to create Excel file at {excel_path}: {e}")  # Detailed error message in console
+                
+                messagebox.showinfo("Excel Created Successfully", f"Excel(s) created successfully in {temp_folder}!")
+                
+                # Proceed with the first Excel file
+                process_first_excel(output_dir, tables_with_titles)
+                clear_labels()  # Reset the labels after generating Excel files
+                refresh_app()  # Refresh the app after successful task
+            else:
+                messagebox.showwarning("No Tables Found", "No tables were detected in the PDF.")
+        else:
+            messagebox.showwarning("Debug", "No output directory selected.")
+
+
+
+
+
+def process_first_excel(output_dir, tables_with_titles):
+    temp_folder = os.path.join(output_dir, "temp118121")
+    sample_file_name = os.path.basename(sample_excel)  # Extracting the sample file name
+
+    if tables_with_titles and sample_excel:
+        for idx in range(2):  # Considering only the first two tables for processing
+            table_path = os.path.join(temp_folder, f"table_{idx}.xlsx")
+            if os.path.exists(table_path):
+                table_df = pd.read_excel(table_path)
+                second_column_first_table = table_df.iloc[1:-1, 1]
+
+                for temp_value in second_column_first_table:
+                    value = str(temp_value).replace(' ', '').replace('.', '').replace(',', '')  # Clean the value
+                    new_file_name = f"{value}.xlsx"
+                    new_file_path = os.path.join(output_dir, new_file_name)
+
+                    shutil.copy(sample_excel, new_file_path)
+                    print("File Created", f"New file '{new_file_name}' created.")
+
+                    for next_idx in range(idx + 1, len(tables_with_titles)):
+                        next_table_path = os.path.join(temp_folder, f"table_{next_idx}.xlsx")
+                        if os.path.exists(next_table_path):
+                            next_table_df = pd.read_excel(next_table_path)
+                            second_column_next_table = next_table_df.iloc[1:, 1]
+
+                            for match_name in second_column_next_table:
+                                match_name = str(match_name).replace(' ', '').replace('.', '').replace(',', '')
+                                matches = [file for file in os.listdir(output_dir) if match_name in file]
+                                if matches:
+                                    print("Match Found", "Matched")
+
+                                    for match in matches:
+                                        file_path = os.path.join(output_dir, match)
+                                        matched_excel = pd.read_excel(file_path)
+                                        for idx, m_row in matched_excel.iterrows():
+                                            if value in str(m_row.iloc[0]):
+                                                retrieved_value = m_row.iloc[3]
+                                                print("Match Found", f"Match found with value: {retrieved_value}")
+
+                                                workbook = load_workbook(file_path)
+                                                sheet = workbook.active
+                                                sheet['G27'] = retrieved_value
+                                                workbook.save(file_path)
+                                                messagebox.showinfo("Value Written", f"Value '{retrieved_value}' written to '{match}'.")
+
+        messagebox.showinfo("Process Completed", "All files updated with matches.")
+
+
+
+
+
+def clear_labels():
+    pdf_label.config(text="Selected PDF: ")
+    pdf_label.pack()
+
+
+def refresh_app():
+    root.destroy()
+    main()
+
+
+def main():
+    global root, pdf_label, sample_label
+
+    root = tk.Tk()
+    root.title("PDF to Excel Converter")
+
+    style = ttk.Style()
+    style.configure("TButton", padding=6, relief="flat", foreground="black", background="green")
+    style.map("TButton", background=[("active", "#0056b3")])
+
+    main_frame = tk.Frame(root, bg="#f0f0f0")
+    main_frame.pack(padx=20, pady=20)
+
+    select_button = ttk.Button(main_frame, text="Select PDF", command=select_pdf, style="TButton")
+    select_button.pack(pady=10)
+
+    pdf_label = tk.Label(main_frame, text="Selected PDF: ", bg="#f0f0f0")
+    pdf_label.pack()
+
+    select_sample_button = ttk.Button(main_frame, text="Select Sample Excel", command=select_sample_excel, style="TButton")
+    select_sample_button.pack(pady=10)
+
+    sample_label = tk.Label(main_frame, text="Selected Sample Excel: ", bg="#f0f0f0")
+    sample_label.pack()
+
+    generate_button = ttk.Button(main_frame, text="Generate Excel", command=generate_excel, style="TButton")
+    generate_button.pack(pady=10)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
+```
+# Working With Doc FIle
+```bash
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import pandas as pd
+import os
+import shutil
+from docx import Document
+
+# Function to extract data from a Word document
+def extract_data_from_docx(docx_file):
+    doc = Document(docx_file)
+    text_content = ""
+    tables_with_titles = []
+    
+    for table in doc.tables:
+        table_data = []
+        for row in table.rows:
+            row_data = []
+            for cell in row.cells:
+                row_data.append(cell.text)
+            table_data.append(row_data)
+        
+        # Extracting the title before the table
+        title = ""
+        for paragraph in table.rows[0].cells[0].paragraphs:
+            title += paragraph.text
+        tables_with_titles.append({"Title": title, "Table": table_data})
+    
+    return text_content, tables_with_titles
+
+# Function to handle selection of Word document
+def select_docx():
+    global docx_file
+    docx_file = filedialog.askopenfilename(filetypes=[("Word Files", "*.docx")])
+    if docx_file:
+        docx_label.config(text=f"Selected Word Doc: {docx_file}")
+        docx_label.pack()
+
+# Function to handle selection of Sample Excel file
+def select_sample_excel():
+    global sample_excel, sample_label
+    sample_excel = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx")])
+    if sample_excel:
+        sample_label.config(text=f"Selected Sample Excel: {sample_excel}")
+        sample_label.pack()
+
+
+# Function to handle generation of Excel from Word document
+def generate_excel_from_docx():
+    global docx_file, sample_excel
+    if docx_file:
+        text_content, tables_with_titles = extract_data_from_docx(docx_file)
+        
+        output_dir = filedialog.askdirectory()
+        
+        if output_dir:
+            temp_folder = os.path.join(output_dir, "temp118121")
+            if not os.path.exists(temp_folder):
+                os.makedirs(temp_folder)
+            
+            if tables_with_titles:
+                for idx, data in enumerate(tables_with_titles):
+                    table = data["Table"]
+                    df = pd.DataFrame(table)
+                    df.ffill(axis=0, inplace=True)
+                    
+                    excel_path = f"{output_dir}/table_{idx}.xlsx"
+                    try:
+                        df.to_excel(excel_path, index=False)
+                        print(f"table_{idx}.xlsx created")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to create Excel file at {excel_path}: {e}")
+                        print(f"Failed to create Excel file at {excel_path}: {e}")
+                    
+                    # Move generated Excel files to temp folder
+                    if os.path.exists(excel_path):
+                        shutil.move(excel_path, os.path.join(temp_folder, f"table_{idx}.xlsx"))
+                
+                messagebox.showinfo("Excel Created Successfully", f"Excel(s) moved to {temp_folder}!")
+                process_first_excel(output_dir, tables_with_titles)
+                clear_labels()
+            else:
+                messagebox.showwarning("No Tables Found", "No tables were detected in the Word document.")
+        else:
+            messagebox.showwarning("Debug", "No output directory selected.")
+
+
+def process_first_excel(output_dir, tables_with_titles):
+    if tables_with_titles and sample_excel:
+        first_table_df = pd.DataFrame(tables_with_titles[0]["Table"])
+        first_table_df.ffill(axis=0, inplace=True)
+
+        for row_idx, row in first_table_df.iloc[1:-1].iterrows():
+            new_file_name = f"{row[1]}.xlsx"
+            shutil.copy(sample_excel, os.path.join(output_dir, new_file_name))
+
+        messagebox.showinfo("Processing Completed", f"New Excel files created based on the first table!")
+    else:
+        messagebox.showwarning("No Tables Found or No Sample Excel", "No tables were detected in the Word document or no Sample Excel selected.")
+
+def clear_labels():
+    docx_label.config(text="Selected Word Doc: ")
+    docx_label.pack()
+    sample_label.config(text="Selected Sample Excel: ")
+    sample_label.pack()
+
+def main():
+    global root, docx_label, sample_label, sample_excel
+
+    root = tk.Tk()
+    root.title("Word to Excel Converter")
+
+    style = ttk.Style()
+    style.configure("TButton", padding=6, relief="flat", foreground="black", background="green")
+    style.map("TButton", background=[("active", "#0056b3")])
+
+    main_frame = tk.Frame(root, bg="#f0f0f0")
+    main_frame.pack(padx=20, pady=20)
+
+    select_button = ttk.Button(main_frame, text="Select Word Doc", command=select_docx, style="TButton")
+    select_button.pack(pady=10)
+
+    docx_label = tk.Label(main_frame, text="Selected Word Doc: ", bg="#f0f0f0")
+    docx_label.pack()
+
+    select_sample_button = ttk.Button(main_frame, text="Select Sample Excel", command=select_sample_excel, style="TButton")
+    select_sample_button.pack(pady=10)
+
+    sample_label = tk.Label(main_frame, text="Selected Sample Excel: ", bg="#f0f0f0")
+    sample_label.pack()
+
+    generate_button = ttk.Button(main_frame, text="Generate Table in Excel", command=generate_excel_from_docx, style="TButton")
+    generate_button.pack(pady=10)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
+```
+```bash
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import pandas as pd
+import os
+import shutil
+from docx import Document
+
+
+# Function to handle selection of Word document
+def select_docx():
+    global docx_file
+    docx_file = filedialog.askopenfilename(filetypes=[("Word Files", "*.docx")])
+    if docx_file:
+        docx_label.config(text=f"Selected Word Doc: {docx_file}")
+        docx_label.pack()
+
+# Function to handle selection of Sample Excel file
+def select_sample_excel():
+    global sample_excel, sample_label
+    sample_excel = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx")])
+    if sample_excel:
+        sample_label.config(text=f"Selected Sample Excel: {sample_excel}")
+        sample_label.pack()
+
+
+# Function to extract data from a Word document
+def extract_data_from_docx(docx_file):
+    doc = Document(docx_file)
+    text_content = ""
+    tables_with_titles = []
+    
+    for table in doc.tables:
+        table_data = []
+        for row in table.rows:
+            row_data = []
+            for cell in row.cells:
+                row_data.append(cell.text)
+            table_data.append(row_data)
+        
+        # Extracting the title before the table
+        title = ""
+        for paragraph in table.rows[0].cells[0].paragraphs:
+            title += paragraph.text
+        tables_with_titles.append({"Title": title, "Table": table_data})
+    
+    return text_content, tables_with_titles
+
+
+# Function to handle generation of Excel from Word document
+def generate_excel_from_docx():
+    global docx_file, sample_excel
+    if docx_file:
+        text_content, tables_with_titles = extract_data_from_docx(docx_file)
+        
+        output_dir = filedialog.askdirectory()
+        
+        if output_dir:
+            temp_folder = os.path.join(output_dir, "temp118121")
+            if not os.path.exists(temp_folder):
+                os.makedirs(temp_folder)
+            
+            if tables_with_titles:
+                for idx, data in enumerate(tables_with_titles):
+                    table = data["Table"]
+                    df = pd.DataFrame(table)
+                    df.ffill(axis=0, inplace=True)
+                    
+                    excel_path = f"{temp_folder}/table_{idx}.xlsx"
+                    try:
+                        df.to_excel(excel_path, index=False)
+                        print(f"table_{idx}.xlsx created")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to create Excel file at {excel_path}: {e}")
+                        print(f"Failed to create Excel file at {excel_path}: {e}")
+                
+                messagebox.showinfo("Excel Created Successfully", f"Excel(s) moved to {temp_folder}!")
+                process_first_excel(output_dir, tables_with_titles)
+                clear_labels()
+            else:
+                messagebox.showwarning("No Tables Found", "No tables were detected in the Word document.")
+        else:
+            messagebox.showwarning("Debug", "No output directory selected.")
+    else:
+        messagebox.showwarning("Opps!", "Please select valid doc file.")
+
+
+def process_first_excel(output_dir, tables_with_titles):
+    if tables_with_titles and sample_excel:
+        first_table_df = pd.DataFrame(tables_with_titles[0]["Table"])
+        first_table_df.ffill(axis=0, inplace=True)
+        created_files = []
+
+        for row_idx, row in first_table_df.iloc[1:-1].iterrows():
+            new_file_name = row[1].replace(" ", "").replace(".", "").replace(",", "") + ".xlsx"
+            print(f"Creating {new_file_name}...")
+            shutil.copy(sample_excel, os.path.join(output_dir, new_file_name))
+            created_files.append(new_file_name)
+
+        messagebox.showinfo("Processing Completed", f"New Excel files created based on the first table!")
+
+        # Check for existing files
+        # existing_files = [filename for filename in os.listdir(output_dir) if filename.endswith(".xlsx")]
+        # duplicates = set(created_files) & set(existing_files)
+        # if duplicates:
+        #     messagebox.showwarning("Duplicates Found", f"Duplicate files found: {', '.join(duplicates)}")
+    else:
+        messagebox.showwarning("No Tables Found or No Sample Excel", "No tables were detected in the Word document or no Sample Excel selected.")
+def clear_labels():
+    docx_label.config(text="Selected Word Doc: ")
+    docx_label.pack()
+    sample_label.config(text="Selected Sample Excel: ")
+    sample_label.pack()
+
+def main():
+    global root, docx_label, sample_label, sample_excel
+
+    root = tk.Tk()
+    root.title("Word to Excel Converter")
+
+    style = ttk.Style()
+    style.configure("TButton", padding=6, relief="flat", foreground="black", background="green")
+    style.map("TButton", background=[("active", "#0056b3")])
+
+    main_frame = tk.Frame(root, bg="#f0f0f0")
+    main_frame.pack(padx=20, pady=20)
+
+    select_button = ttk.Button(main_frame, text="Select Word Doc", command=select_docx, style="TButton")
+    select_button.pack(pady=10)
+
+    docx_label = tk.Label(main_frame, text="Selected Word Doc: ", bg="#f0f0f0")
+    docx_label.pack()
+
+    select_sample_button = ttk.Button(main_frame, text="Select Sample Excel", command=select_sample_excel, style="TButton")
+    select_sample_button.pack(pady=10)
+
+    sample_label = tk.Label(main_frame, text="Selected Sample Excel: ", bg="#f0f0f0")
+    sample_label.pack()
+
+    generate_button = ttk.Button(main_frame, text="Generate Table in Excel", command=generate_excel_from_docx, style="TButton")
+    generate_button.pack(pady=10)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
+    ```
 
 
 
