@@ -15,7 +15,7 @@ def english_to_bengali_number_in_words(english_number):
     return modified_output
 
 # Example usage:
-string = (str(0143.34) + "").split('.')[0]
+string = (str(442157.34) + "").split('.')[0]
 english_number = float(string)
 english_number = english_number
 bengali_words = english_to_bengali_number_in_words(english_number)

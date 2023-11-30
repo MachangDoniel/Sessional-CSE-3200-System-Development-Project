@@ -1,1 +1,1 @@
-s
+shutil.copy(self.sample_excel, os.path.join(self.output_dir, new_file_name))
