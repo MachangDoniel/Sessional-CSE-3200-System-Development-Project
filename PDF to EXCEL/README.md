@@ -2545,7 +2545,7 @@ class WordToExcelConverter:
         self.total_no_of_table=0
         self.year=0
         self.term=0
-        self.dept="CSE"
+        self.dept="সিএসই"
 
         
     
@@ -2583,8 +2583,20 @@ class WordToExcelConverter:
     #         self.pause_button.config(state="active")
     #         self.continue_button.config(state="disabled")
 
+
+    def extract_department_line(self):
+        pattern = r'(?:Department of|Department Of)(.*)'
+        doc = Document(self.docx_file)
+        for paragraph in doc.paragraphs:
+            match = re.search(pattern, paragraph.text)
+            if match:
+                self.dept = match.group(1).strip()  # Extract text after the department pattern
+                return
+
+        return None
+
     
-    def extract_words_before_table(self):
+    def extract_year_and_term(self):
         pattern = r'Bills - (\w+).*?year (\w+)'
         doc = Document(self.docx_file)
         for paragraph in doc.paragraphs:
@@ -2607,8 +2619,21 @@ class WordToExcelConverter:
     def extract_data_from_docx(self):
         # Function to extract data from a Word document
 
+
         try:
-            self.extract_words_before_table()
+            self.extract_department_line()
+
+            if self.dept:
+                print("Department Line:", self.dept)
+            else:
+                print("No 'Department of' line found.")
+        except FileNotFoundError:
+            print(f"Error: The file '{self.docs_file}' was not found.")
+        except Exception as e:
+            print(f"Error: {e}")
+
+        try:
+            self.extract_year_and_term()
     
             if self.year and self.term:
                 print("Word after 'bills :", self.year)
@@ -2619,6 +2644,7 @@ class WordToExcelConverter:
             print(f"Error: The file '{self.docx_file}' was not found.")
         except Exception as e:
             print(f"Error: {e}")
+
         
         doc = Document(self.docx_file)
         text_content = ""
@@ -2677,6 +2703,24 @@ class WordToExcelConverter:
         # Remove commas and add "টাকা মাত্র" at the end
         modified_output = "কথায় : " + words_in_bengali.replace(',', '') + " টাকা মাত্র।"
         return modified_output
+    
+    def convert_suffix_to_bengali(text):
+        # Dictionary mapping English suffixes to Bengali
+        suffixes_mapping = {
+            "1st": "১ম",
+            "2nd": "২য়",
+            "3rd": "৩য়",
+            "4th": "৪র্থ",  # You can add more mappings as needed
+            # Add more mappings for other suffixes
+        }
+
+        # Replace English suffixes with Bengali equivalents
+        for suffix in suffixes_mapping:
+            if suffix in text:
+                text = text.replace(suffix, suffixes_mapping[suffix])
+
+        return text
+
 
 
     def print_matching_value_for_file(self, new_file, name, designation):
@@ -2686,19 +2730,26 @@ class WordToExcelConverter:
         # An array of the size of the first, initially all value is 0
         matching_values = [0] * total_no_of_table #12
 
+
+
         # Set Name, Year, Term
         print("Name: ",name)
         print("Designation: ",designation)
+        print("Dept: ",self.dept)
         print("Year, Term: ",self.year,self.term)
+
+
+        # 
 
 
         # Question Paper Setter & Script Examiner 
         if total_no_of_table > 1:
             table_data = self.tables_with_titles[1]["Table"]
             table_df = pd.DataFrame(table_data)
-
+            print("Lets see: ")
             for row_idx in range(1, len(table_df)):
                 table_value = str(table_df.iloc[row_idx, 1]).replace(" ", "").replace(".", "").replace(",", "")
+                print(table_value)
                 if str(new_file).lower() in table_value.lower() or table_value.lower() in str(new_file).lower():
                     matching_values[1] += float(table_df.iloc[row_idx, 3]) 
                     print(f"Matching value for {new_file}: {matching_values[1]}")
@@ -2886,9 +2937,7 @@ class WordToExcelConverter:
         print(matching_values)
 
         
-
-
-
+        
     def process_first_excel(self):
         if self.output_dir and self.tables_with_titles and self.sample_excel:
             file_count = 0  # Counter for the files being created

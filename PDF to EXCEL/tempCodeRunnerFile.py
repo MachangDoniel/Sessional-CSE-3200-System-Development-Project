@@ -1,2 +1,1 @@
-bengali_words = english_to_bengali_number_in_words(english_number)
-print(bengali_words)
+extract_words_before_table

@@ -16,7 +16,7 @@ import time
 
 class WordToExcelConverter:
 
-    
+
     def __init__(self):
         self.docx_file = None
         self.sample_excel = None
@@ -28,8 +28,48 @@ class WordToExcelConverter:
         self.total_no_of_table=0
         self.year=0
         self.term=0
-        self.dept="CSE"
+        self.dept="সিএসই"    # Mother Department
+        self.translator = Translator()
+        self.dept_suffixes_mapping = {
+             
+        "computer science and engineering": "সিএসই",
+        "computer science & engineering": "সিএসই",
+        "electrical and electronic engineering": "ইইই",
+        "electrical & electronic engineering": "ইইই",
+        "electronics and communication engineering": "ইসিই",
+        "electronics & communication engineering": "ইসিই",
+        "biomedical engineering": "বিএমই",
+        "materials science and engineering": "এমএসই",
+        "materials science & engineering": "এমএসই",
+        "civil engineering": "পুরকৌশল",
+        "urban and regional planning": "ইউআরপি",
+        "urban & regional planning": "ইউআরপি",
+        "building engineering and construction management": "বিইসিএম",
+        "building engineering & construction management": "বিইসিএম",
+        "architecture": "স্থাপত্য",
+        "mathematics": "গণিত",
+        "math": "গণিত",
+        "chemistry": "রসায়ন",
+        "physics": "পদার্থ",
+        "humanities": "মানবিক",
+        "mechanical engineering": "যন্ত্র প্রকৌশল",
+        "industrial engineering and management": "শিল্প প্রকৌশল",
+        "industrial engineering & management": "শিল্প প্রকৌশল",
+        "energy science and engineering": "ইএসই",
+        "energy science & engineering": "ইএসই",
+        "leather engineering": "লেদার",
+        "textile engineering": "টেক্সটাইল",
+        "chemical engineering": "টেক্সটাইল",
+        "mechatronics engineering": "মেকাট্রনিক্স",
+        }
 
+    def dept_translate_to_bengali(self, english_text):
+        bengali_text = self.dept_suffixes_mapping.get(english_text.lower())
+        if not bengali_text:
+            # If the translation is not found in the mapping, use Google Translate
+            translated = self.translator.translate(english_text, dest='bn')
+            bengali_text = translated.text
+        return bengali_text
         
     
     def clear_labels(self):
@@ -66,8 +106,20 @@ class WordToExcelConverter:
     #         self.pause_button.config(state="active")
     #         self.continue_button.config(state="disabled")
 
+
+    def extract_department_line(self):
+        pattern = r'(?:Department of|Department Of)(.*)'
+        doc = Document(self.docx_file)
+        for paragraph in doc.paragraphs:
+            match = re.search(pattern, paragraph.text)
+            if match:
+                self.dept = match.group(1).strip()  # Extract text after the department pattern
+                return
+
+        return None
+
     
-    def extract_words_before_table(self):
+    def extract_year_and_term(self):
         pattern = r'Bills - (\w+).*?year (\w+)'
         doc = Document(self.docx_file)
         for paragraph in doc.paragraphs:
@@ -90,8 +142,21 @@ class WordToExcelConverter:
     def extract_data_from_docx(self):
         # Function to extract data from a Word document
 
+
         try:
-            self.extract_words_before_table()
+            self.extract_department_line()
+
+            if self.dept:
+                print("Department Line:", self.dept)
+            else:
+                print("No 'Department of' line found.")
+        except FileNotFoundError:
+            print(f"Error: The file '{self.docs_file}' was not found.")
+        except Exception as e:
+            print(f"Error: {e}")
+
+        try:
+            self.extract_year_and_term()
     
             if self.year and self.term:
                 print("Word after 'bills :", self.year)
@@ -102,6 +167,7 @@ class WordToExcelConverter:
             print(f"Error: The file '{self.docx_file}' was not found.")
         except Exception as e:
             print(f"Error: {e}")
+
         
         doc = Document(self.docx_file)
         text_content = ""
@@ -150,6 +216,46 @@ class WordToExcelConverter:
         else:
             messagebox.showwarning("Oops!", "Please select a valid doc file.")
 
+    def should_skip_translation(self, text):
+        name_patterns = [r'Dean', r'Md\.', r'Dr\.', r'Sk\.', r'Fatema']
+        for pattern in name_patterns:
+            if re.search(pattern, text):
+                return True
+        return False
+
+    def translate_to_bengali(self, text):
+        translator = Translator()
+    
+        # Define the translation rules
+        translation_rules = {
+            r'Dean': 'ডিন',
+            r'Md\.': 'মোঃ',
+            r'Dr\.': 'ড.',
+            r'Sk\.': 'শেখ',
+            r'Most': 'মোসাম্মৎ',
+            r'Fatema': 'ফাতেমা'
+        }
+
+        parts = text.split()
+        translated_parts = []
+        for part in parts:
+            if not self.should_skip_translation(part):
+                # Apply the specific translation rule if found
+                for pattern, replacement in translation_rules.items():
+                    if re.search(pattern, part):
+                        part = re.sub(pattern, replacement, part)
+                        break
+                translated_part = translator.translate(part, dest='bn').text
+            else:
+                # Use provided translation rules when skipping translation
+                for pattern, replacement in translation_rules.items():
+                    if re.search(pattern, part):
+                        translated_part = re.sub(pattern, replacement, part)
+                        break
+            translated_parts.append(translated_part)
+
+        return ' '.join(translated_parts)
+
 
     def english_to_bengali_number_in_words(self, english_number):
         # Convert English number to words using Indian numbering system
@@ -160,28 +266,86 @@ class WordToExcelConverter:
         # Remove commas and add "টাকা মাত্র" at the end
         modified_output = "কথায় : " + words_in_bengali.replace(',', '') + " টাকা মাত্র।"
         return modified_output
+    
+    def convert_suffix_to_bengali(self, text):
+        # Dictionary mapping English suffixes to Bengali
+        suffixes_mapping = {
+            "1st": "১ম",
+            "2nd": "২য়",
+            "3rd": "৩য়",
+            "4th": "৪র্থ",  # You can add more mappings as needed
+            # Add more mappings for other suffixes
+        }
+
+        # Replace English suffixes with Bengali equivalents
+        for suffix in suffixes_mapping:
+            if suffix in text:
+                text = text.replace(suffix, suffixes_mapping[suffix])
+
+        return text
+
+    def convert_year_term_suffixes_to_bengali(self, text):
+        # Dictionary mapping English year_term_suffixes to Bengali
+        year_term_suffixes_mapping = {
+            "1st": "১ম",
+            "2nd": "২য়",
+            "3rd": "৩য়",
+            "4th": "৪র্থ",  # You can add more mappings as needed
+            # Add more mappings for other year_term_suffixes
+        }
+
+        # Replace English year_term_suffixes with Bengali equivalents
+        for suffix in year_term_suffixes_mapping:
+            if suffix in text:
+                text = text.replace(suffix, year_term_suffixes_mapping[suffix])
+
+        return text
 
 
-    def print_matching_value_for_file(self, new_file, name, designation):
+    def print_matching_value_for_file(self, new_file, name, designation, department):
         print("Processing...")
         total_no_of_table = len(self.tables_with_titles) #12
 
         # An array of the size of the first, initially all value is 0
         matching_values = [0] * total_no_of_table #12
 
+
+
         # Set Name, Year, Term
         print("Name: ",name)
+        # name = self.translate_to_bengali(name)
+        # print("Name: ",name)
+
         print("Designation: ",designation)
-        print("Year, Term: ",self.year,self.term)
+        designation = self.translate_to_bengali(designation)
+        print("Designation: ",designation)
+
+        print("Dept: ",self.dept)
+        self.dept = self.dept_translate_to_bengali(self.dept.lower())
+        print("Dept: ",self.dept)
+
+        print("Department: ",department)
+        department = self.dept_translate_to_bengali(department.lower())
+        print("Department: ",department)
+        
+        print("Year: ",self.year)
+        print("Term: ",self.term)
+        self.year=self.convert_year_term_suffixes_to_bengali(self.year)
+        self.term=self.convert_year_term_suffixes_to_bengali(self.term)
+        print("Year: ",self.year)
+        print("Term: ",self.term)
+
+
 
 
         # Question Paper Setter & Script Examiner 
         if total_no_of_table > 1:
             table_data = self.tables_with_titles[1]["Table"]
             table_df = pd.DataFrame(table_data)
-
+            print("Lets see: ")
             for row_idx in range(1, len(table_df)):
                 table_value = str(table_df.iloc[row_idx, 1]).replace(" ", "").replace(".", "").replace(",", "")
+                print(table_value)
                 if str(new_file).lower() in table_value.lower() or table_value.lower() in str(new_file).lower():
                     matching_values[1] += float(table_df.iloc[row_idx, 3]) 
                     print(f"Matching value for {new_file}: {matching_values[1]}")
@@ -369,9 +533,7 @@ class WordToExcelConverter:
         print(matching_values)
 
         
-
-
-
+        
     def process_first_excel(self):
         if self.output_dir and self.tables_with_titles and self.sample_excel:
             file_count = 0  # Counter for the files being created
@@ -386,16 +548,17 @@ class WordToExcelConverter:
                     first_table_df_designation = df.iloc[:, 2]  # Extracting the content from the second column
 
                     # Create separate Excel files based on each row's content
-                    for row_i, (name, designation) in enumerate(zip(first_table_df_name,first_table_df_designation)):
+                    for row_i, (name, designation_and_department) in enumerate(zip(first_table_df_name,first_table_df_designation)):
                         if row_i != 0 and row_i != len(first_table_df_name) - 1:
                             name=name.split(',')[0]
-                            designation=designation.split(',')[0]
+                            designation=designation_and_department.split(',')[0]
+                            department=designation_and_department.split(',')[1]
                             new_file=name.replace(" ", "").replace(".", "").replace(",", "")
                             self.new_files.append(new_file)  # Append new_file to the global array
                             new_file_name = new_file + ".xlsx"
                             print(f"Creating {new_file_name}...")
                             shutil.copy(self.sample_excel, os.path.join(self.output_dir, new_file_name))
-                            self.print_matching_value_for_file(new_file,name,designation)
+                            self.print_matching_value_for_file(new_file,name,designation,department)
                             file_count += 1  # Increment file count
 
 

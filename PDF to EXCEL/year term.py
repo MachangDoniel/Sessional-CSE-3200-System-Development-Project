@@ -18,7 +18,7 @@ def extract_words_before_table(doc):
     return None, None
 
 # Replace 'your_document.docx' with the actual path to your DOCX file
-doc_path = '/Users/biduit/Downloads/PDF to EXCEL/Project/Exam_Bill_Demo.docx'
+doc_path = 'E:\New\Demo.docx'
 
 try:
     doc = Document(doc_path)
