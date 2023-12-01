@@ -12,6 +12,7 @@ from num2words import num2words
 from googletrans import Translator
 import time
 import bangla
+import threading
 
 
 
@@ -26,6 +27,9 @@ class WordToExcelConverter:
         self.output_dir = None
         self.tables_with_titles = None
         self.combined_excel_path = None
+        self.file_handling_thread = None
+        self.name = ""
+
         self.new_files = []  # Array to store new_file values globally
         # self.paused = False
         self.total_no_of_table=0
@@ -101,12 +105,48 @@ class WordToExcelConverter:
         select_sample_button = ttk.Button(left_frame, text="Select Sample Excel", command=self.select_sample_excel)
         select_sample_button.pack(pady=10)
 
-        generate_button = ttk.Button(left_frame, text="Generate Table in Excel", command=self.generate_excel_from_docx)
+        def update_name():
+            self.name = self.entry.get()
+            print("Name: ", self.name)
+        #     self.update_label_text()
+
+        # def update_label_text():
+        #     self.label.config(text=f"Entered Name: {self.name}")
+
+        # Entry widget to take text input
+        self.entry = tk.Entry(left_frame, width=30)
+        self.entry.pack()
+
+        # Button to update the label text
+        self.update_button = tk.Button(left_frame, text="Update Label", command=update_name)
+        self.update_button.pack()
+
+        # Label to display the input text
+        self.label = tk.Label(left_frame, text="Enter text in the Entry and click 'Update Label'")
+        self.label.pack()
+
+        generate_button = ttk.Button(left_frame, text="Generate Bill", command=self.generate_excel_from_docx)
         generate_button.pack(pady=10)
 
-        process_button = ttk.Button(left_frame, text="Process the first table", command=self.process_first_table)
-        process_button.pack(pady=10)
+        # process_button = ttk.Button(left_frame, text="Process the first table", command=self.process_first_table)
+        # process_button.pack(pady=10)
 
+        self.file_handling_thread = None
+        self.pause_event = threading.Event()
+
+        # Create pause, continue, and reset buttons
+        self.pause_button = tk.Button(left_frame, text="Pause", command=self.pause_progress)
+        self.continue_button = tk.Button(left_frame, text="Continue", command=self.continue_progress)
+        self.reset_button = tk.Button(left_frame, text="Reset", command=self.reset_progress)
+        # Pack buttons in a horizontal line
+        self.pause_button.pack(side=tk.LEFT, padx=5, pady=10)
+        self.continue_button.pack(side=tk.LEFT, padx=5, pady=10)
+        self.reset_button.pack(side=tk.LEFT, padx=5, pady=10)
+        
+        # Pack buttons in a horizontal line
+        self.pause_button.pack(side=tk.LEFT, padx=5, pady=10)
+        self.continue_button.pack(side=tk.LEFT, padx=5, pady=10)
+        self.reset_button.pack(side=tk.LEFT, padx=5, pady=10)
         # Generate other UI elements as needed in the left_frame...
 
         # Right frame for empty area to be utilized
@@ -133,6 +173,32 @@ class WordToExcelConverter:
         self.progress_bar.pack()
         self.progress_bar.pack_forget()
 
+    def start_file_handling(self):
+        self.root.after(100, self.process_first_table)
+         # self.file_handling_thread = threading.Thread(target=self.process_first_table)
+        # self.file_handling_thread.start()
+
+    def pause_progress(self):
+        self.pause_event.set()
+        self.pause_button.config(state=tk.DISABLED)
+        self.continue_button.config(state=tk.NORMAL)
+
+    def continue_progress(self):
+        self.pause_event.clear()
+        self.continue_button.config(state=tk.DISABLED)
+        self.pause_button.config(state=tk.NORMAL)
+        if self.file_handling_thread and not self.file_handling_thread.is_alive():
+            self.start_file_handling()
+
+    def reset_progress(self):
+        # Reset operation to initial state
+        self.pause_event.clear()
+        self.pause_button.config(state=tk.NORMAL)
+        self.continue_button.config(state=tk.DISABLED)
+        if self.file_handling_thread and self.file_handling_thread.is_alive():
+            self.file_handling_thread.join()
+        # Reset other necessary states or variables       
+        self.clear_labels(self) 
 
     def update_progress_bar(self, value):
         self.progress_bar['value'] = value
@@ -177,6 +243,7 @@ class WordToExcelConverter:
         self.sample_label.pack()
         self.progress_bar.pack_forget()  # Hide the progress bar
         self.update_progress_bar(0)
+        self.entry.delete(0, tk.END) 
 
     def english_to_bengali_number_in_words(self, english_number):
         # Convert English number to words using Indian numbering system
@@ -473,25 +540,30 @@ class WordToExcelConverter:
                     for row_i, (name, designation_and_department) in enumerate(zip(first_table_df_name,first_table_df_designation)):
 
                         if row_i != 0 and row_i != len(first_table_df_name) - 1:
-                            
                             name=name.split(',')[0]
-                            designation=designation_and_department.split(',')[0]
-                            department=designation_and_department.split(',')[1]
-                            new_file=name.replace(" ", "").replace(".", "").replace(",", "")
-                            self.new_files.append(new_file)  # Append new_file to the global array
-                            new_file_name = new_file + ".xlsx"
-                            file_path = os.path.join(self.output_dir, new_file_name)
-                            print(f"Creating {new_file_name}... at {file_path}")
-                            shutil.copy(self.sample_excel, file_path)
-                            self.print_matching_value_for_file(new_file, name, designation, department)
-                            file_count += 1  # Increment file count
-                            self.update_progress_bar(file_count*3)
+                            print(name, " ", self.name)
+                            if self.name.lower() in name.lower() or name.lower() in self.name.lower():
+                                designation=designation_and_department.split(',')[0]
+                                department=designation_and_department.split(',')[1]
+                                new_file=name.replace(" ", "").replace(".", "").replace(",", "")
+                                self.new_files.append(new_file)  # Append new_file to the global array
+                                new_file_name = new_file + ".xlsx"
+                                file_path = os.path.join(self.output_dir, new_file_name)
+                                print(f"Creating {new_file_name}... at {file_path}")
+                                shutil.copy(self.sample_excel, file_path)
+                                self.print_matching_value_for_file(new_file, name, designation, department)
+                                file_count += 1  # Increment file count
+                                self.update_progress_bar(file_count*3)
 
                     # Append the first table content to the combined DataFrame
                     combined_df = pd.concat([combined_df, first_table_df_name], axis=1)
                 else:
                     combined_df = pd.concat([combined_df, df.iloc[1:-1, 1]], axis=1)
 
+            self.update_progress_bar(100)
+            print("The total no of files are:", file_count)
+            print("The files are:", self.new_files)
+            messagebox.showinfo("Congratulations!", f"Excel Created Successfully! Total Files Created: {file_count}")
             self.update_progress_bar(100)
             print("The total no of files are:", file_count)
             print("The files are:", self.new_files)
@@ -657,7 +729,7 @@ class WordToExcelConverter:
                             sheet_name = f"Table_{i}"
                             df.to_excel(writer, sheet_name=sheet_name, index=False)
                             print(f"{sheet_name} added to Excel")
-                        messagebox.showinfo("Excel Created Successfully", f"All tables moved to {excel_path}!")
+                        # messagebox.showinfo("Excel Created Successfully", f"All tables moved to {excel_path}!")
                         # self.clear_labels()
                     # self.pause_execution()
                 else:
@@ -666,6 +738,7 @@ class WordToExcelConverter:
                 messagebox.showwarning("Debug", "No output directory selected.")
         else:
             messagebox.showwarning("Oops!", "Please select a valid doc file.")
+        self.process_first_table()
 
     def select_sample_excel(self):
         # Function to handle selection of Sample Excel file
