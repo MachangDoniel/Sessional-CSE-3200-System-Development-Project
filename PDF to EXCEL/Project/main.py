@@ -15,9 +15,12 @@ import bangla
 
 
 
+
 class WordToExcelConverter:
 
-    def __init__(self):
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Automatic bill generator")
         self.docx_file = None
         self.sample_excel = None
         self.output_dir = None
@@ -63,6 +66,95 @@ class WordToExcelConverter:
         "chemical engineering": "টেক্সটাইল",
         "mechatronics engineering": "মেকাট্রনিক্স",
         }
+
+
+        # Create main frame
+        main_frame = tk.Frame(self.root)
+        main_frame.pack()
+        self.main_frame= main_frame
+
+        # Create top frame for title
+        top_frame = tk.Frame(main_frame, bg='white')
+        top_frame.pack(fill=tk.X)
+        self.top_frame= top_frame
+
+        # Title label with mixed colors
+        title_label = tk.Label(top_frame, text="Automatic bill generator", font=('Arial', 18, 'bold'), bg='white')
+        title_label.pack(pady=10)
+        # Change text color by segments
+        title_label.config(fg='#0000FF')  # Blue color
+
+        # Create middle frame for left and right sections
+        middle_frame = tk.Frame(main_frame)
+        middle_frame.pack(fill=tk.BOTH, expand=True)
+        self.middle_frame= middle_frame
+
+        # Left frame for existing content
+        left_frame = tk.Frame(middle_frame)
+        left_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.BOTH, expand=True)
+        self.left_frame= left_frame
+
+        # Existing content - Add your current UI elements here
+        select_button = ttk.Button(left_frame, text="Select Word Doc", command=self.select_docx)
+        select_button.pack(pady=10)
+
+        select_sample_button = ttk.Button(left_frame, text="Select Sample Excel", command=self.select_sample_excel)
+        select_sample_button.pack(pady=10)
+
+        generate_button = ttk.Button(left_frame, text="Generate Table in Excel", command=self.generate_excel_from_docx)
+        generate_button.pack(pady=10)
+
+        process_button = ttk.Button(left_frame, text="Process the first table", command=self.process_first_table)
+        process_button.pack(pady=10)
+
+        # Generate other UI elements as needed in the left_frame...
+
+        # Right frame for empty area to be utilized
+        right_frame = tk.Frame(middle_frame, bg='lightgray')
+        right_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
+        self.right_frame= right_frame
+
+        # Store area in the right frame
+        store_area_label = tk.Label(right_frame, text="Store Area Placeholder", bg='lightgray')
+        store_area_label.pack()
+
+        bottom_frame = tk.Frame(main_frame)
+        bottom_frame.pack(fill=tk.BOTH, expand=True)
+        self.bottom_frame= bottom_frame
+
+
+        self.docx_label = tk.Label(bottom_frame, text="Selected Word Doc: ")
+        self.docx_label.pack()
+
+        self.sample_label = tk.Label(bottom_frame, text="Selected Sample Excel: ")
+        self.sample_label.pack()
+
+        self.progress_bar = ttk.Progressbar(bottom_frame, orient=tk.HORIZONTAL, length=200, mode='determinate')
+        self.progress_bar.pack()
+
+
+    def update_progress_bar(self, value):
+        self.progress_bar['value'] = value
+        self.root.update_idletasks()  # Refresh the window to update the progress bar
+    
+    def update_docx_label(self):
+        if self.docx_file:
+            self.docx_label.config(text=f"Selected Word Doc: {self.docx_file}")
+            self.docx_label.pack()
+
+    def update_sample_label(self):
+        if self.sample_excel:
+            self.sample_label.config(text=f"Selected Sample Excel: {self.sample_excel}")
+            self.sample_label.pack()
+
+    def display_table_data(self, table_data):
+        pass
+
+    def show_error_message(self, message):
+        messagebox.showerror("Error", message)
+
+    def show_success_message(self, message):
+        messagebox.showinfo("Success", message)
 
     def pause_execution(self):
         while self.paused:
@@ -355,7 +447,8 @@ class WordToExcelConverter:
 
         print(matching_values)
 
-    def process_first_excel(self):
+    def process_first_table(self):
+        self.update_progress_bar(2)
         if self.output_dir and self.tables_with_titles and self.sample_excel:
             file_count = 0  # Counter for the files being created
             combined_df = pd.DataFrame()  # Initialize an empty DataFrame to hold all tables
@@ -375,7 +468,9 @@ class WordToExcelConverter:
                     
                     # Create separate Excel files based on each row's content
                     for row_i, (name, designation_and_department) in enumerate(zip(first_table_df_name,first_table_df_designation)):
+
                         if row_i != 0 and row_i != len(first_table_df_name) - 1:
+                            
                             name=name.split(',')[0]
                             designation=designation_and_department.split(',')[0]
                             department=designation_and_department.split(',')[1]
@@ -387,13 +482,14 @@ class WordToExcelConverter:
                             shutil.copy(self.sample_excel, file_path)
                             self.print_matching_value_for_file(new_file, name, designation, department)
                             file_count += 1  # Increment file count
-
+                            self.update_progress_bar(file_count*3)
 
                     # Append the first table content to the combined DataFrame
                     combined_df = pd.concat([combined_df, first_table_df_name], axis=1)
                 else:
                     combined_df = pd.concat([combined_df, df.iloc[1:-1, 1]], axis=1)
 
+            self.update_progress_bar(100)
             print("The total no of files are:", file_count)
             print("The files are:", self.new_files)
             messagebox.showinfo("Congratulations!", f"Excel Created Successfully! Total Files Created: {file_count}")
@@ -584,44 +680,10 @@ class WordToExcelConverter:
 
 
 
-    def main(self):
-        root = tk.Tk()
-        root.title("KUET teachers' automatic bill generator")
-        style = ttk.Style()
-        style.configure("TButton", padding=6, relief="flat", foreground="black", background="green")
-        style.map("TButton", background=[("active", "#0056b3")])
-        main_frame = tk.Frame(root, bg="#f0f0f0")
-        main_frame.pack(padx=20, pady=20)
-
-        select_button = ttk.Button(main_frame, text="Select Word Doc", command=self.select_docx, style="TButton")
-        select_button.pack(pady=10)
-
-        self.docx_label = tk.Label(main_frame, text="Selected Word Doc: ", bg="#f0f0f0")
-        self.docx_label.pack()
-
-        select_sample_button = ttk.Button(main_frame, text="Select Sample Excel", command=self.select_sample_excel, style="TButton")
-        select_sample_button.pack(pady=10)
-
-        self.sample_label = tk.Label(main_frame, text="Selected Sample Excel: ", bg="#f0f0f0")
-        self.sample_label.pack()
-
-        generate_button = ttk.Button(main_frame, text="Generate Table in Excel", command=self.generate_excel_from_docx, style="TButton")
-        generate_button.pack(pady=10)
-
-        process_button = ttk.Button(main_frame, text="Process the first table", command=self.process_first_excel, style="TButton")
-        process_button.pack(pady=10)
-
-        
-        # pause_button = ttk.Button(main_frame, text="Pause", command=self.toggle_pause, style="TButton")
-        # pause_button.pack(pady=10)
-
-        # continue_button = ttk.Button(main_frame, text="Continue", command=self.toggle_pause, style="TButton")
-        # continue_button.pack(pady=10)
-        # continue_button.configure(state="disabled")
-
-
-        root.mainloop()
+def main():
+    root = tk.Tk()
+    app = WordToExcelConverter(root)
+    root.mainloop()
 
 if __name__ == "__main__":
-    converter = WordToExcelConverter()
-    converter.main()
+    main()
