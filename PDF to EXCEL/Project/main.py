@@ -1,23 +1,32 @@
+# <---------------------------------------------- import libraries ----------------------------------------------> start
+
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 import os
 import shutil
+import docx
 from docx import Document
 from openpyxl import load_workbook
+from openpyxl import Workbook
 import xlwings as xw
 import re
 from docx import Document
 from num2words import num2words
 from googletrans import Translator
+from functools import partial
 import time
 import bangla
 import threading
+# <---------------------------------------------- import libraries ----------------------------------------------> end
 
 
+# <---------------------------------------------- class section ----------------------------------------------> start
 
 
 class WordToExcelConverter:
+
+# <---------------------------------------------- definition section ----------------------------------------------> start
 
     def __init__(self, root):
         self.root = root
@@ -29,8 +38,10 @@ class WordToExcelConverter:
         self.combined_excel_path = None
         self.file_handling_thread = None
         self.name = ""
+        # self.file_list = []
 
         self.new_files = []  # Array to store new_file values globally
+        self.extracted_data = []
         # self.paused = False
         self.total_no_of_table=0
         self.year=0
@@ -70,8 +81,11 @@ class WordToExcelConverter:
         "chemical engineering": "টেক্সটাইল",
         "mechatronics engineering": "মেকাট্রনিক্স",
         }
+        self.setup_gui()
 
-
+# <---------------------------------------------- GUI section ----------------------------------------------> start
+                
+    def setup_gui(self):
         # Create main frame
         main_frame = tk.Frame(self.root)
         main_frame.pack()
@@ -84,7 +98,7 @@ class WordToExcelConverter:
 
         # Title label with mixed colors
         title_label = tk.Label(top_frame, text="Automatic bill generator", font=('Arial', 18, 'bold'), bg='white')
-        title_label.pack(pady=10)
+        title_label.pack(padx=300, pady=10)
         # Change text color by segments
         title_label.config(fg='#0000FF')  # Blue color
 
@@ -105,27 +119,30 @@ class WordToExcelConverter:
         select_sample_button = ttk.Button(left_frame, text="Select Sample Excel", command=self.select_sample_excel)
         select_sample_button.pack(pady=10)
 
+
+        # Entry widget to take text input
+
+        self.entry = tk.Entry(left_frame, width=30)
+        self.entry.pack()  # Pack entry widget to the left side as well
+
         def update_name():
             self.name = self.entry.get()
             print("Name: ", self.name)
-        #     self.update_label_text()
+            # self.update_label_text()
+            self.generate_excel_from_docx(1)
 
         # def update_label_text():
         #     self.label.config(text=f"Entered Name: {self.name}")
 
-        # Entry widget to take text input
-        self.entry = tk.Entry(left_frame, width=30)
-        self.entry.pack()
-
         # Button to update the label text
-        self.update_button = tk.Button(left_frame, text="Update Label", command=update_name)
+        self.update_button = tk.Button(left_frame, text="Generate Individuals Bill", command=update_name)
         self.update_button.pack()
 
         # Label to display the input text
         self.label = tk.Label(left_frame, text="Enter text in the Entry and click 'Update Label'")
         self.label.pack()
 
-        generate_button = ttk.Button(left_frame, text="Generate Bill", command=self.generate_excel_from_docx)
+        generate_button = ttk.Button(left_frame, text="Generate Bill For all Teachers", command=partial(self.generate_excel_from_docx,0))
         generate_button.pack(pady=10)
 
         # process_button = ttk.Button(left_frame, text="Process the first table", command=self.process_first_table)
@@ -154,9 +171,11 @@ class WordToExcelConverter:
         right_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
         self.right_frame= right_frame
 
+
         # Store area in the right frame
-        store_area_label = tk.Label(right_frame, text="Store Area Placeholder", bg='lightgray')
-        store_area_label.pack()
+        # Create a Listbox widget to display the list in the right frame
+        self.listbox = tk.Listbox(right_frame)
+        self.listbox.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
         bottom_frame = tk.Frame(main_frame)
         bottom_frame.pack(fill=tk.BOTH, expand=True)
@@ -169,9 +188,17 @@ class WordToExcelConverter:
         self.sample_label = tk.Label(bottom_frame, text="Selected Sample Excel: ")
         self.sample_label.pack()
 
-        self.progress_bar = ttk.Progressbar(bottom_frame, orient=tk.HORIZONTAL, length=200, mode='determinate')
+        self.progress_bar = ttk.Progressbar(bottom_frame, orient=tk.HORIZONTAL, length=400, mode='determinate')
         self.progress_bar.pack()
         self.progress_bar.pack_forget()
+
+
+# <---------------------------------------------- GUI section ----------------------------------------------> end
+
+    def update_listbox(self):
+        self.listbox.delete(0, tk.END)  # Clear the Listbox before updating
+        for file in self.new_files:
+            self.listbox.insert(tk.END, file)
 
     def start_file_handling(self):
         self.root.after(100, self.process_first_table)
@@ -198,7 +225,7 @@ class WordToExcelConverter:
         if self.file_handling_thread and self.file_handling_thread.is_alive():
             self.file_handling_thread.join()
         # Reset other necessary states or variables       
-        self.clear_labels(self) 
+        self.clear_labels() 
 
     def update_progress_bar(self, value):
         self.progress_bar['value'] = value
@@ -244,6 +271,21 @@ class WordToExcelConverter:
         self.progress_bar.pack_forget()  # Hide the progress bar
         self.update_progress_bar(0)
         self.entry.delete(0, tk.END) 
+        self.listbox.delete(0, tk.END)
+        self.docx_file = None
+        self.sample_excel = None
+        self.output_dir = None
+        self.tables_with_titles = None
+        self.combined_excel_path = None
+        self.file_handling_thread = None
+        self.name = ""
+        self.new_files = [] 
+        self.extracted_data = []
+        self.total_no_of_table=0
+        self.year=0
+        self.term=0
+        self.AD=0
+        self.dept=""
 
     def english_to_bengali_number_in_words(self, english_number):
         # Convert English number to words using Indian numbering system
@@ -550,6 +592,7 @@ class WordToExcelConverter:
                                 new_file_name = new_file + ".xlsx"
                                 file_path = os.path.join(self.output_dir, new_file_name)
                                 print(f"Creating {new_file_name}... at {file_path}")
+                                # self.file_list.append(new_file)
                                 shutil.copy(self.sample_excel, file_path)
                                 self.print_matching_value_for_file(new_file, name, designation, department)
                                 file_count += 1  # Increment file count
@@ -559,16 +602,14 @@ class WordToExcelConverter:
                     combined_df = pd.concat([combined_df, first_table_df_name], axis=1)
                 else:
                     combined_df = pd.concat([combined_df, df.iloc[1:-1, 1]], axis=1)
-
+            self.update_listbox()
             self.update_progress_bar(100)
             print("The total no of files are:", file_count)
             print("The files are:", self.new_files)
             messagebox.showinfo("Congratulations!", f"Excel Created Successfully! Total Files Created: {file_count}")
-            self.update_progress_bar(100)
-            print("The total no of files are:", file_count)
-            print("The files are:", self.new_files)
-            messagebox.showinfo("Congratulations!", f"Excel Created Successfully! Total Files Created: {file_count}")
-            self.clear_labels()
+            self.progress_bar.pack_forget()  # Hide the progress bar
+            self.update_progress_bar(0)
+            # self.clear_labels()
         else:
             messagebox.showwarning("No Tables Found or No Sample Excel", "No tables were detected in the Word document or no Sample Excel selected.")
 
@@ -624,6 +665,65 @@ class WordToExcelConverter:
                 return
 
         return None
+
+    def extract_information_from_docx(self):
+        # Define regular expression pattern for extracting structured information
+        pattern = re.compile(r"Dr\..*?, (Professor.*?), (Dept\. of .*?), (KUET.*?)\s+(Ext\.\s+Member|Member)$")
+
+        # Load the Word document
+        doc = docx.Document(self.docx_file)
+
+        # Initialize lists to store extracted information
+        names = []
+        titles = []
+        departments = []
+        institutions = []
+        roles = []
+
+        # Iterate through paragraphs in the document and extract information using regex
+        for paragraph in doc.paragraphs:
+            text = paragraph.text.strip()
+            # Apply regex pattern to extract information
+            match = pattern.match(text)
+            if match:
+                names.append(text.split(',')[0].strip())  # Extracting name separately due to different structure
+                titles.append(match.group(1))
+                departments.append(match.group(2))
+                institutions.append(match.group(3))
+                roles.append(match.group(4))
+
+        # Populate extracted data
+        for i in range(len(names)):
+            data = {
+                "Name": names[i],
+                "Title": titles[i],
+                "Department": departments[i],
+                "Institution": institutions[i],
+                "Role": roles[i]
+            }
+            self.extracted_data.append(data)
+
+    def create_excel(self):
+        self.extract_information_from_docx()
+        if not self.extracted_data:
+            print("No data extracted. Run 'extract_information_from_docx' first.")
+            return
+        temp_folder = os.path.join(self.output_dir, "AllTables")  # Path to AllTables directory
+        excel_path = os.path.join(temp_folder, "committee.xlsx")
+        workbook = Workbook()
+        sheet = workbook.active
+
+        # Set column headers
+        headers = ["Name", "Title", "Department", "Institution", "Role"]
+        sheet.append(headers)
+
+        # Add extracted data to the worksheet
+        for item in self.extracted_data:
+            row = [item["Name"], item["Title"], item["Department"], item["Institution"], item["Role"]]
+            sheet.append(row)
+
+        # Save the workbook as an Excel file
+        workbook.save(excel_path)
 
     def extract_data_from_docx(self):
         # Function to extract data from a Word document
@@ -709,7 +809,10 @@ class WordToExcelConverter:
             self.total_no_of_table = len(self.tables_with_titles)
         return text_content, self.tables_with_titles
 
-    def generate_excel_from_docx(self):
+    def generate_excel_from_docx(self, flag):
+        if flag==0:
+            self.name=""
+        self.new_files = [] 
         self.progress_bar.pack(pady=20)
         if self.docx_file:
             self.output_dir = filedialog.askdirectory()
@@ -738,6 +841,8 @@ class WordToExcelConverter:
                 messagebox.showwarning("Debug", "No output directory selected.")
         else:
             messagebox.showwarning("Oops!", "Please select a valid doc file.")
+        self.create_excel()
+        print("Committee table created....")
         self.process_first_table()
 
     def select_sample_excel(self):
@@ -755,12 +860,14 @@ class WordToExcelConverter:
             self.docx_label.pack()
 
 
+# <---------------------------------------------- definition section ----------------------------------------------> end
+# <---------------------------------------------- class section ----------------------------------------------> end
 
-
+# <---------------------------------------------- main function ----------------------------------------------> start
 def main():
     root = tk.Tk()
     app = WordToExcelConverter(root)
     root.mainloop()
-
+# <---------------------------------------------- main function ----------------------------------------------> end
 if __name__ == "__main__":
     main()

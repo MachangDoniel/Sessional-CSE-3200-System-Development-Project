@@ -1,0 +1,49 @@
+import docx
+import re
+
+def extract_information_from_docx(file_path):
+    # Define regular expression pattern for extracting structured information
+    pattern = re.compile(r"Dr\..*?, (Professor.*?), (Dept\. of .*?), (KUET.*?)\s+(Ext\.\s+Member|Member)$")
+
+
+    # Load the Word document
+    doc = docx.Document(file_path)
+
+    # Initialize lists to store extracted information
+    names = []
+    titles = []
+    departments = []
+    institutions = []
+    roles = []
+
+    # Iterate through paragraphs in the document and extract information using regex
+    for paragraph in doc.paragraphs:
+        text = paragraph.text.strip()
+        # Apply regex pattern to extract information
+        match = pattern.match(text)
+        if match:
+            names.append(text.split(',')[0].strip())  # Extracting name separately due to different structure
+            titles.append(match.group(1))
+            departments.append(match.group(2))
+            institutions.append(match.group(3))
+            roles.append(match.group(4))
+
+    # Return extracted information as a list of dictionaries
+    extracted_data = []
+    for i in range(len(names)):
+        data = {
+            "Name": names[i],
+            "Title": titles[i],
+            "Department": departments[i],
+            "Institution": institutions[i],
+            "Role": roles[i]
+        }
+        extracted_data.append(data)
+
+    return extracted_data
+
+# Example usage:
+file_path = 'Demo.docx'  # Replace 'Demo.docx' with the path to your Word file
+result = extract_information_from_docx(file_path)
+for data in result:
+    print(data)
