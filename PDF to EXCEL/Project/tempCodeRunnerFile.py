@@ -1,2 +1,1 @@
-
-            self.docx_label.config(text=f"Selected Wo
+self.progress_bar.pack()

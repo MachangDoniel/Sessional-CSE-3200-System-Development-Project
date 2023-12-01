@@ -131,6 +131,7 @@ class WordToExcelConverter:
 
         self.progress_bar = ttk.Progressbar(bottom_frame, orient=tk.HORIZONTAL, length=200, mode='determinate')
         self.progress_bar.pack()
+        self.progress_bar.pack_forget()
 
 
     def update_progress_bar(self, value):
@@ -174,6 +175,8 @@ class WordToExcelConverter:
         self.docx_label.pack()
         self.sample_label.config(text="Selected Sample Excel: ")
         self.sample_label.pack()
+        self.progress_bar.pack_forget()  # Hide the progress bar
+        self.update_progress_bar(0)
 
     def english_to_bengali_number_in_words(self, english_number):
         # Convert English number to words using Indian numbering system
@@ -635,6 +638,7 @@ class WordToExcelConverter:
         return text_content, self.tables_with_titles
 
     def generate_excel_from_docx(self):
+        self.progress_bar.pack(pady=20)
         if self.docx_file:
             self.output_dir = filedialog.askdirectory()
             if self.output_dir:
